@@ -4,28 +4,34 @@ import entity.customExceptions.InvalidNameException;
 import entity.customExceptions.MissingObjectException;
 import entity.recetas.Receta;
 import service.CocinaService;
+import service.DespensaService;
 import service.KitchenService;
+import service.PantryService;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 public class Chef {
     private String nombre;
     private Integer estrellasMichelin;
     private KitchenService kitchenService;
+    private PantryService pantryService;
 
     public Chef() {
         this.nombre = "";
         this.estrellasMichelin = 0;
-        this.kitchenService = new CocinaService();
+        this.kitchenService = CocinaService.getInstance();
+        this.pantryService = new DespensaService();
     }
 
-    public Chef(String nombre, Integer estrellasMichelin, KitchenService kitchenService) {
+    public Chef(String nombre, Integer estrellasMichelin, KitchenService kitchenService, PantryService pantryService) {
         this.nombre = nombre;
         this.estrellasMichelin = estrellasMichelin;
         this.kitchenService = kitchenService;
+        this.pantryService = pantryService;
     }
 
     public String getNombre() {
@@ -52,6 +58,14 @@ public class Chef {
         this.kitchenService = kitchenService;
     }
 
+    public PantryService getPantryService() {
+        return pantryService;
+    }
+
+    public void setPantryService(PantryService pantryService) {
+        this.pantryService = pantryService;
+    }
+
     @Override
     public String toString() {
         return "Chef " + nombre +
@@ -76,19 +90,19 @@ public class Chef {
                 +recetaName.trim().toLowerCase()+"\n");
         while (true) {
             try {
-                String missingItems = this.kitchenService.getMissingItems(recetaName);
+                String missingItems = this.kitchenService.getMissingItems(recetaName, this.pantryService);
                 if (!Objects.equals(missingItems, "") && !runtimeExceptionFlag) {
                     System.out.println(missingItems);
                     System.out.println("\nRenovando el stock de la despensa...\n");
                 }
-                System.out.println("Preparando:  "+this.kitchenService.makeReceta(recetaName));
-                System.out.println(this.kitchenService.showPantryStatus());
+                System.out.println("Preparando:  "+this.kitchenService.makeReceta(recetaName, this.pantryService));
+                System.out.println(this.kitchenService.showPantryStatus(this.pantryService));
                 break;
             } catch (MissingObjectException e) {
                 if (runtimeExceptionFlag) {
                     throw new RuntimeException(e);
                 }
-                this.kitchenService.prepareKitchen();
+                this.kitchenService.prepareKitchen(this.pantryService);
                 runtimeExceptionFlag = true;
             }
         }
@@ -103,5 +117,9 @@ public class Chef {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    public Runnable getCallableMakeReceta(String recetaName) {
+        return new ChefRunnable(recetaName, this);
     }
 }

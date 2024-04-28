@@ -11,16 +11,10 @@ import java.util.stream.Collectors;
 
 public class CocinaService implements KitchenService{
     private Map<String, Receta> recetas;
-    private DespensaService despensaService;
+    private static CocinaService instance;
 
-    public CocinaService() {
+    private CocinaService() {
         this.recetas = new HashMap<>();
-        this.despensaService = new DespensaService();
-    }
-
-    public CocinaService(Map<String, Receta> recetas, DespensaService despensaService) {
-        this.recetas = recetas;
-        this.despensaService = despensaService;
     }
 
     @Override
@@ -34,18 +28,15 @@ public class CocinaService implements KitchenService{
     }
 
     @Override
-    public DespensaService getDespensaService() {
-        return despensaService;
-    }
-
-    @Override
-    public void setDespensaService(DespensaService despensaService) {
-        this.despensaService = despensaService;
-    }
-
-    @Override
     public String toString() {
-        return "CocinaService, " + KitchenService.showRecetas(this.recetas) + this.despensaService;
+        return "CocinaService, " + KitchenService.showRecetas(this.recetas);
+    }
+
+    public static KitchenService getInstance() {
+        if (instance == null) {
+            instance = new CocinaService();
+        }
+        return instance;
     }
 
     @Override
@@ -69,37 +60,38 @@ public class CocinaService implements KitchenService{
     }
 
     @Override
-    public void restockKitchen() {
-        this.despensaService.restockIngredientes();
-        this.despensaService.renovarUtensilios();
+    public void restockKitchen(PantryService pantryService) {
+        pantryService.restockIngredientes();
+        pantryService.renovarUtensilios();
     }
 
     @Override
-    public void prepareKitchen() {
+    public void prepareKitchen(PantryService pantryService) {
         for (Receta receta: this.recetas.values()) {
             Set<Cocinable> ingredientes = receta.getIngredientes().values().stream()
                     .map(obj -> new Ingrediente(obj.getNombre(), 0))
                     .map(Cocinable.class::cast)
                     .collect(Collectors.toSet());
-            this.despensaService.addIngredientes(ingredientes);
+            pantryService.addIngredientes(ingredientes);
             Set<Reutilizable> utensilios = receta.getUtensilios().values().stream()
                     .map(obj -> new Utensilio(obj.getNombre(), (obj.getVidaUtil()*20)))
                     .map(Reutilizable.class::cast)
                     .collect(Collectors.toSet());
-            this.despensaService.addUtensilios(utensilios);
+            pantryService.addUtensilios(utensilios);
         }
     }
 
-    public String getMissingItems(String recetaName) throws InvalidNameException {
+    @Override
+    public String getMissingItems(String recetaName, PantryService pantryService) throws InvalidNameException {
         StringBuilder missingItems = new StringBuilder();
         Receta receta = this.getReceta(recetaName);
         try {
-            this.despensaService.verifyStock(new HashSet<>(receta.getIngredientes().values()));
+            pantryService.verifyStock(new HashSet<>(receta.getIngredientes().values()));
         } catch (StockInsuficienteException e) {
             missingItems.append("\n").append(e.getMessage());
         }
         try {
-            this.despensaService.verifyVidaUtil(new HashSet<>(receta.getUtensilios().values()));
+            pantryService.verifyVidaUtil(new HashSet<>(receta.getUtensilios().values()));
         } catch (VidaUtilInsuficienteException e) {
             missingItems.append("\n").append(e.getMessage());
         }
@@ -107,34 +99,34 @@ public class CocinaService implements KitchenService{
     }
 
     @Override
-    public String makeReceta(String recetaName) throws InvalidNameException, MissingObjectException {
+    public String makeReceta(String recetaName, PantryService pantryService) throws InvalidNameException, MissingObjectException {
         Receta receta = this.getReceta(recetaName);
         Set<Cocinable> ingredientes = new HashSet<>(receta.getIngredientes().values());
         Set<Reutilizable> utensilios = new HashSet<>(receta.getUtensilios().values());
         try {
-            this.despensaService.verifyStock(ingredientes);
-            this.despensaService.verifyVidaUtil(utensilios);
+            pantryService.verifyStock(ingredientes);
+            pantryService.verifyVidaUtil(utensilios);
         } catch (StockInsuficienteException | VidaUtilInsuficienteException e) {
-            this.restockKitchen();
+            this.restockKitchen(pantryService);
         }
         boolean restockFailFlag = false;
         boolean renewFailFlag = false;
         while (true) {
             try {
-                this.despensaService.useIngredientes(ingredientes);
-                this.despensaService.useUtensilios(utensilios);
+                pantryService.useIngredientes(ingredientes);
+                pantryService.useUtensilios(utensilios);
                 break;
             } catch (StockInsuficienteException e) {
                 if (restockFailFlag) { throw new MissingObjectException(
                             "Verify all items needed for the recipe exists executing 'prepareKitchen()'"); }
-                Set<Cocinable> missingIngredientes = this.despensaService.getMissingIngredientes(ingredientes);
-                this.despensaService.restockIngredientes(missingIngredientes);
+                Set<Cocinable> missingIngredientes = pantryService.getMissingIngredientes(ingredientes);
+                pantryService.restockIngredientes(missingIngredientes);
                 restockFailFlag = true;
             } catch (VidaUtilInsuficienteException e) {
                 if (renewFailFlag) { throw new MissingObjectException(
                         "Verify all items needed for the recipe exists executing 'prepareKitchen()'"); }
-                Set<Reutilizable> missingUtensilios = this.despensaService.getMissingUtensilios(utensilios);
-                this.despensaService.renovarUtensilios(missingUtensilios);
+                Set<Reutilizable> missingUtensilios = pantryService.getMissingUtensilios(utensilios);
+                pantryService.renovarUtensilios(missingUtensilios);
                 renewFailFlag = true;
             }
         }
@@ -142,7 +134,7 @@ public class CocinaService implements KitchenService{
     }
 
     @Override
-    public String showPantryStatus() {
-        return this.despensaService.getDespensa().toString();
+    public String showPantryStatus(PantryService pantryService) {
+        return pantryService.getDespensa().toString();
     }
 }

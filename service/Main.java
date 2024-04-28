@@ -1,53 +1,62 @@
 package service;
 
 import entity.*;
-import entity.customExceptions.InvalidNameException;
-import entity.customExceptions.ObjectAlreadyExistsException;
-import entity.customExceptions.StockInsuficienteException;
-import entity.customExceptions.VidaUtilInsuficienteException;
 import entity.recetas.*;
-
-import javax.print.attribute.standard.ReferenceUriSchemesSupported;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     public static void main (String[] args) {
-        // ################ TP 2 PUNTO 2 ################
+        // ################ TP 3 ################
         System.out.print("\u001B[31m");
-        System.out.println("\nTP2 Punto2:\n");
+        System.out.println("\nTP3:\n");
         System.out.print("\u001B[0m");
         Map<String, Receta> recetas = new HashMap<>() {{
+            put("ensalada", new Ensalada());
             put("fideos", new Fideos());
             put("huevo duro", new HuevoDuro());
             put("pizza", new Pizza());
         }};
-        CocinaService cocinaService = new CocinaService(recetas, new DespensaService());
-        Chef chef = new Chef("Fernando", 2, cocinaService);
-        System.out.println("\nPreparando la cocina para su uso...\n");
-        cocinaService.prepareKitchen();
-        System.out.println("Estado de la despensa:"+cocinaService.showPantryStatus());
-        System.out.println("\nEl "+ chef + " va a preparar las siguientes");
-        chef.showAvailableRecipes();
-        chef.makeRecetas();
-        System.out.println("\nUn cliente pidió una receta nueva: 'ensalada'\n");
+        KitchenService cocinaService = CocinaService.getInstance();
+        cocinaService.setRecetas(recetas);
+        System.out.println("\n\n"+KitchenService.showRecetas(cocinaService.getRecetas())+"\n\n");
+        // ################ Lunes a Jueves ################
+        System.out.print("\u001B[32m");
+        System.out.println("\nEjemplo de comportamiento de Lunes a Jueves:\n");
+        System.out.print("\u001B[0m");
+        Map<String, Chef> chefsMap3 = new HashMap<>();
+        for (String name: new String[]{"Pedro", "Juan", "Pepe"}) {
+            chefsMap3.put(name, new Chef(name, new Random().nextInt(6), cocinaService, new DespensaService()));
+        }
+        System.out.println("\nCada chef va a preparar una receta:  \n\n");
+        ExecutorService executorService3 = Executors.newFixedThreadPool(3);
+        List<String> nombresRecetas = recetas.keySet().stream().toList();
+        for (Chef chef: chefsMap3.values()) {
+            executorService3.execute(chef.getCallableMakeReceta(nombresRecetas
+                    .get(new Random().nextInt(nombresRecetas.size()))));
+        }
         try {
-            cocinaService.addReceta("Ensalada ", new Ensalada());
-            System.out.println(cocinaService.getReceta("ensalada"));
-            chef.makeReceta("ensalada");
-        } catch (ObjectAlreadyExistsException | InvalidNameException e) {
+            executorService3.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        System.out.println("\nEl chef quemó una olla y rompió un tenedor...");
-        try {
-            Reutilizable olla = cocinaService.getDespensaService().getDespensa().inspectUtensilio("olla");
-            olla.use(olla.getVidaUtil());
-            Reutilizable cuchara = cocinaService.getDespensaService().getDespensa().inspectUtensilio("tenedor");
-            cuchara.use(cuchara.getVidaUtil());
-            System.out.println("\nEl último cliente pidió unos fideos...");
-            chef.makeReceta("FiDeos   ");
-        } catch (InvalidNameException | VidaUtilInsuficienteException e) {
-            throw new RuntimeException(e);
+        executorService3.shutdown();
+        // ################ Viernes a Domingos y Feriados ################
+        System.out.print("\u001B[32m");
+        System.out.println("\nEjemplo de comportamiento de Viernes a Domingos y Feriados:\n");
+        System.out.print("\u001B[0m");
+        Map<String, Chef> chefsMap5 = new HashMap<>();
+        for (String name: new String[]{"Jose", "Abril", "Sofia", "Matias", "Lisa"}) {
+            chefsMap5.put(name, new Chef(name, new Random().nextInt(6), cocinaService, new DespensaService()));
         }
+        System.out.println("\nCada chef va a preparar una receta:  \n\n");
+        ExecutorService executorService5 = Executors.newFixedThreadPool(5);
+        for (Chef chef: chefsMap5.values()) {
+            executorService5.execute(chef.getCallableMakeReceta(nombresRecetas
+                    .get(new Random().nextInt(nombresRecetas.size()))));
+        }
+        executorService5.shutdown();
     }
 }

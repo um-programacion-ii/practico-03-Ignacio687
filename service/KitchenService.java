@@ -12,10 +12,6 @@ public interface KitchenService {
 
     void setRecetas(Map<String, Receta> recetas);
 
-    DespensaService getDespensaService();
-
-    void setDespensaService(DespensaService despensaService);
-
     static String showRecetas(Map<String, Receta> recetas) {
         return "recetas: " + recetas.values().stream()
                 .map(Object::toString)
@@ -26,13 +22,13 @@ public interface KitchenService {
 
     Receta getReceta(String recetaName) throws InvalidNameException;
 
-    void restockKitchen();
+    void restockKitchen(PantryService pantryService);
 
-    void prepareKitchen();
+    void prepareKitchen(PantryService pantryService);
 
-    String getMissingItems(String recetaName) throws InvalidNameException;
+    String getMissingItems(String recetaName, PantryService pantryService) throws InvalidNameException;
 
-    String makeReceta(String recetaName) throws InvalidNameException, MissingObjectException;
+    String makeReceta(String recetaName, PantryService pantryService) throws InvalidNameException, MissingObjectException;
 
-    String showPantryStatus();
+    String showPantryStatus(PantryService pantryService);
 }
